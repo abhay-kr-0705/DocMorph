@@ -16,6 +16,7 @@ class DocMorphContent {
         this.createOverlay();
         this.scanForFileInputs();
         this.scanForTextForms();
+        this.initAutoSave();
         
         const observer = new MutationObserver(() => {
             this.scanForFileInputs();
@@ -524,6 +525,85 @@ class DocMorphContent {
         } else {
             alert("DocMorph: No matching fields found on this page.");
         }
+    }
+
+    // ========================================
+    //  FORM AUTOSAVE & RESTORE (Module 10)
+    // ========================================
+
+    initAutoSave() {
+        if (window.location.protocol === 'chrome-extension:') return;
+        
+        const formPath = window.location.origin + window.location.pathname;
+        const storageKey = `docmorph_draft_${btoa(formPath).replace(/=/g, '')}`;
+        
+        let typingTimer;
+        const draftData = {};
+
+        // 1. Listen to typing
+        document.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                if (e.target.type === 'password' || e.target.type === 'hidden' || e.target.type === 'file') return;
+                
+                const id = e.target.id || e.target.name;
+                if (!id) return;
+
+                draftData[id] = e.target.value;
+
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    chrome.storage.local.set({ [storageKey]: { timestamp: Date.now(), data: draftData } });
+                }, 1000);
+            }
+        });
+
+        // 2. Check for existing draft on load
+        setTimeout(() => {
+            if (document.querySelectorAll('input[type="text"], input[type="email"], textarea').length < 2) return;
+            
+            chrome.storage.local.get([storageKey], (result) => {
+                const draftObj = result[storageKey];
+                if (draftObj && draftObj.data && Object.keys(draftObj.data).length > 2) {
+                    // Check if it's less than 24 hours old
+                    if (Date.now() - draftObj.timestamp < 24 * 60 * 60 * 1000) {
+                        this.showRestorePrompt(draftObj.data);
+                    } else {
+                        chrome.storage.local.remove(storageKey);
+                    }
+                }
+            });
+        }, 1500); // slight delay to let SPA forms render
+    }
+
+    showRestorePrompt(data) {
+        if (document.getElementById('dmRestoreDraftBtn')) return;
+
+        const btn = document.createElement('button');
+        btn.id = 'dmRestoreDraftBtn';
+        btn.className = 'docmorph-fab';
+        btn.style.bottom = '80px'; // Sit above autofill
+        btn.style.backgroundColor = '#d97706'; // Distinct orange
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:8px;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg> Restore Draft`;
+        
+        btn.addEventListener('click', () => {
+            let restored = 0;
+            const inputs = document.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                const id = input.id || input.name;
+                if (id && data[id] && !input.value) {
+                    input.value = data[id];
+                    input.style.backgroundColor = '#fef3c7';
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    restored++;
+                }
+            });
+            
+            btn.innerHTML = `✓ Restored ${restored}`;
+            setTimeout(() => btn.remove(), 2000);
+        });
+
+        document.body.appendChild(btn);
     }
 
     // ========================================
