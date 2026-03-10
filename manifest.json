@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "DocMorph - Secure Form Filler",
+  "version": "1.0",
+  "description": "Securely store and auto-format your documents (photos, signatures, IDs) locally to instantly fill any web form without leaving the browser.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Open DocMorph Vault"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["content/content.css"],
+      "js": ["utils/indexedDbWrapper.js", "utils/imageProcessor.js", "content/content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
