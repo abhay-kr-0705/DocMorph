@@ -427,7 +427,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     id: crypto.randomUUID(), name: docNameInput.value.trim(),
                     profile: docProfileSelect.value, category: document.getElementById('docCategory').value, type: result.type,
                     blob: result, originalName: currentFile.name,
-                    size: result.size, addedAt: Date.now()
+                    size: result.size, expiry: document.getElementById('docExpiry').value || null,
+                    addedAt: Date.now()
                 }, vaultPassword);
 
                 // Validation feedback
@@ -446,6 +447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 btnRemoveFile.click(); docNameInput.value = '';
+                document.getElementById('docExpiry').value = '';
                 examPresetSelect.value = 'none'; examPresetSelect.dispatchEvent(new Event('change'));
                 loadDocuments();
             } catch (error) {
@@ -489,11 +491,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     let preview = `<div class="doc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16h16V8l-6-6z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>`;
                     if (isImg && doc.blob) preview = `<img src="${URL.createObjectURL(doc.blob)}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;min-width:40px;">`;
 
+                    let expiryHtml = '';
+                    if (doc.expiry) {
+                        const daysLeft = Math.ceil((new Date(doc.expiry) - new Date()) / (1000 * 60 * 60 * 24));
+                        if (daysLeft < 0) {
+                            expiryHtml = `<span style="color:#ef4444;font-size:0.65rem;font-weight:700;">[Expired]</span>`;
+                        } else if (daysLeft <= 30) {
+                            expiryHtml = `<span style="color:#d97706;font-size:0.65rem;font-weight:700;">[Exp in ${daysLeft}d]</span>`;
+                        } else {
+                            expiryHtml = `<span style="color:#10b981;font-size:0.65rem;">[Valid]</span>`;
+                        }
+                    }
+
                     item.innerHTML = `
                         <div class="doc-info">
                             ${preview}
                             <div class="doc-meta">
-                                <span class="doc-name" title="${esc(doc.name)}">${esc(doc.name)}</span>
+                                <span class="doc-name" title="${esc(doc.name)}">${esc(doc.name)} ${expiryHtml}</span>
                                 <div style="display:flex;gap:6px;align-items:center;">
                                     <span class="doc-tags">${esc(cat)} • ${esc(tag)}</span>
                                     <span class="doc-size">• ${formatBytes(doc.size)}</span>
