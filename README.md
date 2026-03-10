@@ -1,28 +1,29 @@
-# DocMorph Walkthrough
+# DocMorph: The Ultimate Form Helper Toolkit
 
-Your privacy-focused, 100% free document filling tool is now fully built! It addresses your core problem: securely storing standard documents (photos, signatures, certificates) and inserting them into web forms at the precise sizes/restrictions needed without sending data to any servers.
+Your privacy-focused, 100% free toolkit for managing documents, profiles, and autofilling web forms locally! 
 
-## What Was Accomplished
-1. **Core Vault UI**: A beautiful popup `IndexedDB`-backed vault where users can upload and manage standard files (Aadhaar cards, Profile Photos, etc.).
-2. **Page Injection**: A content script that automatically detects `<input type="file">` on *any* webpage and injects a "DocMorph: Fill from Vault" button seamlessly next to it.
-3. **On-the-fly Image Compression**: If a form requires a signature `< 50KB`, DocMorph processes the image precisely to hit that mark directly within the client's browser using HTML5 Canvas.
+## Features
+- **Universal Local Vault**: Store your Aadhaar, Signature, and Passport photos safely in your browser. All data stays offline.
+- **Smart Form Autofill**: Click the floating DocMorph widget on any form page to instantly populate text fields with your stored personal profile.
+- **On-the-fly Image Compression**: If a form requires a signature `< 50KB`, DocMorph auto-compresses it via Canvas to hit that mark directly within the browser without uploading anywhere.
+- **Vault Export/Backup**: Generate a local JSON backup of your highly sensitive document vault at any time.
 
 ## How to Test It Locally
 
 ### Installation
-1. Open up your browser:
-   - For **Chrome**: Go to `chrome://extensions`
-   - For **Edge**: Go to `edge://extensions`
-2. Enable **Developer Mode** using the toggle in the top right.
-3. Click **"Load unpacked"**.
-4. Select the folder containing this repository's code.
-5. Pin the "DocMorph" shield icon to your toolbar.
+1. Go to `chrome://extensions` or `edge://extensions`.
+2. Ensure **Developer Mode** is enabled.
+3. Click **"Load unpacked"** and select the folder containing this code.
+4. Pin the "DocMorph" shield icon to your toolbar.
 
 ### Basic Workflow
-1. **Fill Your Vault**: Click the DocMorph icon in your browser toolbar. Upload a sample photo to it and name it "Main Profile Picture".
-2. **Test Injection**: Go to any page with a file input (for example, navigate to an online converter site, your university form, or literally any page that has a "Browse" or "Choose File" button).
-3. **Magic Button**: You will see a `DocMorph` shield button materialize next to the input.
-4. **Auto-Fill & Compress**: Click the button, select your "Main Profile Picture" from the overlay, enter a target size if required by the form (e.g., max 50KB), and click **Fill Form**. The system will compress it via Canvas API and directly inject the resulting `Blob` into the page's input. 
-
-> **Note**:  
-> The extension is entirely offline and strictly local. You incur zero server costs, and your documents are processed inside your browser instance safely.
+1. **Setup Your Profile:** Click the DocMorph icon in your browser toolbar. Go to the **My Profile** tab, fill out your details, and click "Save Profile Locally".
+2. **Setup Your Vault:** Go to the **Document Vault** tab, drop in a sample signature or photo, assign it a tag (e.g., "Self") and save it.
+3. **Test Autofill (Text):** 
+   - Open any dummy web form or online application.
+   - You will see a `DocMorph Autofill Text Form` floating button on the bottom-left. Click it. 
+   - Watch the fields automatically populate with your profile data!
+4. **Test Document Fill (Files):** 
+   - On that same form page, find a "Choose File" button.
+   - Click the `DocMorph: Fill from Vault` injected button next to it.
+   - Select your document, apply an auto-compress size (like 40KB), and hit Fill.
