@@ -61,6 +61,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!storedPin) startApp();
 
     async function startApp() {
+        let vaultPassword = null; // Session password for encryption
+        
+        // --- ONBOARDING (Module 9) ---
+        chrome.storage.local.get(['docmorph_onboarded'], (data) => {
+            if (!data.docmorph_onboarded) {
+                document.getElementById('onboardingOverlay').style.display = 'flex';
+            }
+        });
+        document.getElementById('btnEndOnboarding').addEventListener('click', () => {
+            document.getElementById('onboardingOverlay').style.display = 'none';
+            chrome.storage.local.set({ docmorph_onboarded: true });
+        });
+
         try {
             await db.init();
         } catch (err) {
@@ -87,6 +100,116 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (target === 'tools') initToolsTab();
             });
         });
+
+        // ============================
+        //  MODULE 7: OCR & SCAN
+        // ============================
+        const btnScanId = document.getElementById('btnScanId');
+        const scanIdInput = document.getElementById('scanIdInput');
+        const ocrStatus = document.getElementById('ocrStatus');
+
+        btnScanId.addEventListener('click', () => scanIdInput.click());
+
+        scanIdInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            ocrStatus.style.display = 'block';
+            ocrStatus.className = 'ocr-status active';
+            ocrStatus.textContent = '🔍 Initializing OCR Engine...';
+
+            try {
+                // Tesseract.js Local worker
+                const worker = await Tesseract.createWorker('eng', 1, {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            ocrStatus.textContent = `📝 Scanning: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                });
+
+                const { data: { text } } = await worker.recognize(file);
+                await worker.terminate();
+
+                const extracted = extractData(text);
+                if (extracted.found) {
+                    fillExtractedData(extracted.data);
+                    ocrStatus.className = 'ocr-status success';
+                    ocrStatus.textContent = `✅ Extracted: ${extracted.fields.join(', ')}`;
+                } else {
+                    ocrStatus.className = 'ocr-status warn';
+                    ocrStatus.textContent = '⚠ No clear data found. Try a clearer image.';
+                    console.log("OCR Raw Text:", text); // For debugging
+                }
+
+            } catch (err) {
+                console.error("OCR Error:", err);
+                ocrStatus.className = 'ocr-status error';
+                ocrStatus.textContent = '❌ OCR failed. Is internet available?';
+            }
+            scanIdInput.value = '';
+        });
+
+        function extractData(text) {
+            const data = {};
+            const fields = [];
+            let found = false;
+
+            // 1. Aadhaar (12 digits, often 4-4-4)
+            const aadhaarMatch = text.match(/\d{4}\s\d{4}\s\d{4}/) || text.match(/\d{12}/);
+            if (aadhaarMatch) {
+                data.aadhaar = aadhaarMatch[0].replace(/\s/g, '');
+                // Note: We don't have an Aadhaar field in profile yet, but we could add it.
+                found = true;
+            }
+
+            // 2. PAN (5 letters, 4 digits, 1 letter)
+            const panMatch = text.match(/[A-Z]{5}\d{4}[A-Z]{1}/i);
+            if (panMatch) {
+                data.pan = panMatch[0].toUpperCase();
+                found = true;
+            }
+
+            // 3. DOB (DD/MM/YYYY or DD-MM-YYYY)
+            const dobMatch = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+            if (dobMatch) {
+                const [_, d, m, y] = dobMatch;
+                data.dob = `${y}-${m}-${d}`; // HTML input date format
+                fields.push('DOB');
+                found = true;
+            }
+
+            // 4. Name (Heuristic: usually after "Name" or "DOB")
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].toLowerCase().includes('name') && lines[i+1]) {
+                    data.name = lines[i+1].replace(/[^a-zA-Z\s]/g, '').trim();
+                    fields.push('Name');
+                    found = true;
+                    break;
+                }
+            }
+
+            // 5. Gender
+            if (text.toLowerCase().includes('male') && !text.toLowerCase().includes('female')) {
+                data.gender = 'Male';
+                fields.push('Gender');
+                found = true;
+            } else if (text.toLowerCase().includes('female')) {
+                data.gender = 'Female';
+                fields.push('Gender');
+                found = true;
+            }
+
+            return { found, data, fields };
+        }
+
+        function fillExtractedData(data) {
+            if (data.name) pEl('name').value = data.name;
+            if (data.dob) pEl('dob').value = data.dob;
+            if (data.gender) pEl('gender').value = data.gender;
+            // Aadhaar/PAN can be saved to address or future fields if needed
+        }
 
         // ============================
         //  PROFILE MODULE + QUICK COPY
@@ -305,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     profile: docProfileSelect.value, type: result.type,
                     blob: result, originalName: currentFile.name,
                     size: result.size, addedAt: Date.now()
-                });
+                }, vaultPassword);
 
                 // Validation feedback
                 if (presetKey !== 'none' && presetKey !== 'CUSTOM') {
@@ -346,7 +469,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!docs.length) { emptyState.style.display = 'block'; return; }
                 emptyState.style.display = 'none';
 
-                docs.sort((a, b) => b.addedAt - a.addedAt).forEach(doc => {
+                docs.sort((a, b) => b.addedAt - a.addedAt).forEach(async doc => {
+                    // Pre-fetch decrypted blob if needed for preview
+                    if (doc.encrypted && vaultPassword && !doc.blob) {
+                         const fullDoc = await db.getDocument(doc.id, vaultPassword);
+                         doc.blob = fullDoc.blob;
+                    }
+                    
                     const item = document.createElement('div');
                     item.className = 'doc-item';
                     const isImg = doc.type?.startsWith('image/');
@@ -374,11 +503,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 documentList.querySelectorAll('[data-download]').forEach(btn => {
                     btn.addEventListener('click', async e => {
-                        const doc = await db.getDocument(e.currentTarget.dataset.download);
+                        const doc = await db.getDocument(e.currentTarget.dataset.download, vaultPassword);
                         if (doc?.blob) {
                             const a = document.createElement('a');
                             a.href = URL.createObjectURL(doc.blob);
                             a.download = doc.originalName || doc.name; a.click();
+                        } else if (doc?.encrypted && !vaultPassword) {
+                            alert("Please enter vault password in Tools tab to access encrypted files.");
                         }
                     });
                 });
@@ -528,13 +659,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (toolsInited) return; toolsInited = true;
 
             // --- PIN Management ---
+            // ... (existing PIN logic)
             const pinSetInput = document.getElementById('pinSetInput');
             const btnSetPin = document.getElementById('btnSetPin');
             const btnRemovePin = document.getElementById('btnRemovePin');
             const pinSetupRow = document.getElementById('pinSetupRow');
             const pinStatusMsg = document.getElementById('pinStatusMsg');
 
-            chrome.storage.local.get(['docmorph_pin'], (data) => {
+            chrome.storage.local.get(['docmorph_pin', 'docmorph_vault_encrypted'], (data) => {
                 if (data.docmorph_pin) {
                     pinSetupRow.style.display = 'none';
                     btnRemovePin.style.display = 'block';
@@ -545,7 +677,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnRemovePin.style.display = 'none';
                     pinStatusMsg.textContent = '';
                 }
+
+                if (data.docmorph_vault_encrypted) {
+                    encryptionStatus.textContent = '🛡️ Vault Encryption Enabled';
+                    encryptionStatus.className = 'tool-status active';
+                    btnEnableEncryption.textContent = 'Update Password';
+                }
             });
+
+            // --- Vault Encryption ---
+            const vaultPassInput = document.getElementById('vaultPassInput');
+            const btnEnableEncryption = document.getElementById('btnEnableEncryption');
+            const encryptionStatus = document.getElementById('encryptionStatus');
+
+            btnEnableEncryption.addEventListener('click', async () => {
+                const pass = vaultPassInput.value.trim();
+                if (pass.length < 6) {
+                    encryptionStatus.textContent = 'Password must be at least 6 characters.';
+                    encryptionStatus.className = 'tool-status error';
+                    return;
+                }
+                vaultPassword = pass;
+                await chrome.storage.local.set({ docmorph_vault_encrypted: true });
+                encryptionStatus.textContent = '🛡️ Encryption Active for this session.';
+                encryptionStatus.className = 'tool-status success';
+                vaultPassInput.value = '';
+                btnEnableEncryption.textContent = 'Update Password';
+                loadDocuments(); // Refresh to decrypt if needed
+            });
+
+            // --- Image to PDF ---
+            // ... (rest of the tools logic)
 
             btnSetPin.addEventListener('click', async () => {
                 const pin = pinSetInput.value.trim();

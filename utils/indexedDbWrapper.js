@@ -41,27 +41,66 @@ class DocMorphDB {
         return this.db;
     }
 
+    // --- ENCRYPTION (Module 8) ---
+    async _deriveKey(password) {
+        const encoder = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw', encoder.encode(password), { name: 'PBKDF2' }, false, ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt: encoder.encode('docmorph-salt'), iterations: 100000, hash: 'SHA-256' },
+            keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+        );
+    }
+
+    async encryptBlob(blob, password) {
+        const key = await this._deriveKey(password);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const data = await blob.arrayBuffer();
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+        return { iv: Array.from(iv), data: encrypted };
+    }
+
+    async decryptBlob(encryptedObj, password) {
+        const key = await this._deriveKey(password);
+        const iv = new Uint8Array(encryptedObj.iv);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, encryptedObj.data);
+        return new Blob([decrypted]);
+    }
+
     // --- DOCUMENTS ---
-    async saveDocument(doc) {
+    async saveDocument(doc, password = null) {
         const db = await this._getDb();
+        if (password && doc.blob instanceof Blob) {
+            doc.encrypted = await this.encryptBlob(doc.blob, password);
+            delete doc.blob; // Don't store plain blob
+        }
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([this.docStoreName], 'readwrite');
             const store = transaction.objectStore(this.docStoreName);
             const request = store.put(doc);
-            
             request.onsuccess = () => resolve(doc);
             request.onerror = (e) => reject(e.target.error);
         });
     }
 
-    async getDocument(id) {
+    async getDocument(id, password = null) {
         const db = await this._getDb();
         return new Promise((resolve, reject) => {
             const transaction = db.transaction([this.docStoreName], 'readonly');
             const store = transaction.objectStore(this.docStoreName);
             const request = store.get(id);
-            
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = async () => {
+                const doc = request.result;
+                if (doc && doc.encrypted && password) {
+                    try {
+                        doc.blob = await this.decryptBlob(doc.encrypted, password);
+                    } catch (e) {
+                        console.error("Decryption failed", e);
+                    }
+                }
+                resolve(doc);
+            };
             request.onerror = (e) => reject(e.target.error);
         });
     }

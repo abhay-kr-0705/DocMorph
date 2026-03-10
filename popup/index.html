@@ -26,6 +26,21 @@
 
     <div class="app-container" id="appContainer">
         
+        <!-- Onboarding Overlay (Module 9) -->
+        <div id="onboardingOverlay" class="onboarding-overlay" style="display: none;">
+            <div class="onboarding-card">
+                <h2>Welcome to DocMorph! 🛡️</h2>
+                <p>Your privacy-first toolkit for form filling.</p>
+                <ul class="onboarding-list">
+                    <li>📂 <strong>Vault:</strong> Store and auto-resize docs.</li>
+                    <li>👤 <strong>Profile:</strong> Save info for 1-click autofill.</li>
+                    <li>📦 <strong>Kit:</strong> Generate ZIP for exam portals.</li>
+                    <li>🔐 <strong>Security:</strong> Set a PIN in Tools.</li>
+                </ul>
+                <button class="btn-primary" id="btnEndOnboarding">Got it!</button>
+            </div>
+        </div>
+        
         <div id="errorOverlay" class="error-overlay" style="display: none;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             <h3>Storage Error</h3>
@@ -116,6 +131,17 @@
             </div>
 
             <div class="profile-desc">Save your details locally for autofilling forms.</div>
+            
+            <!-- Module 7: OCR Scan Button -->
+            <div class="ocr-section">
+                <button type="button" class="btn-secondary" id="btnScanId">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    Extract from ID Card (Beta)
+                </button>
+                <input type="file" id="scanIdInput" accept="image/*" style="display:none;">
+                <div id="ocrStatus" class="ocr-status" style="display:none;"></div>
+            </div>
+
             <form id="profileForm" class="profile-form">
                 <div class="input-group"><label>Full Name</label><input type="text" id="p_name" placeholder="Abhay Kumar" autocomplete="off" /></div>
                 <div class="input-row">
@@ -186,6 +212,22 @@
                     </div>
                 </div>
 
+                <!-- Document Encryption -->
+                <div class="tool-card">
+                    <div class="tool-header">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        <h3>Vault Encryption</h3>
+                    </div>
+                    <p>Encrypt all documents with a master password (AES-256).</p>
+                    <div class="tool-actions">
+                        <div class="input-row">
+                            <input type="password" id="vaultPassInput" placeholder="Vault Password" style="flex:1;">
+                            <button class="btn-small" id="btnEnableEncryption">Enable</button>
+                        </div>
+                        <div id="encryptionStatus" class="tool-status"></div>
+                    </div>
+                </div>
+
                 <!-- Danger Zone -->
                 <div class="tool-card danger-card">
                     <div class="tool-header">
@@ -203,6 +245,8 @@
     <script src="../utils/imageProcessor.js"></script>
     <script src="../utils/presetsDB.js"></script>
     <script src="../utils/zipBuilder.js"></script>
+    <!-- External Libs (Local OCR) -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
