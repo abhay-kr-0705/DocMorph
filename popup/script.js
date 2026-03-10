@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 await db.saveDocument({
                     id: crypto.randomUUID(), name: docNameInput.value.trim(),
-                    profile: docProfileSelect.value, type: result.type,
+                    profile: docProfileSelect.value, category: document.getElementById('docCategory').value, type: result.type,
                     blob: result, originalName: currentFile.name,
                     size: result.size, addedAt: Date.now()
                 }, vaultPassword);
@@ -453,7 +453,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             } finally { btnSave.textContent = 'Save to Vault'; updateSaveBtn(); }
         });
 
+        const filterCategorySelect = document.getElementById('filterCategory');
         filterProfileSelect.addEventListener('change', loadDocuments);
+        filterCategorySelect.addEventListener('change', loadDocuments);
 
         async function loadDocuments() {
             try {
@@ -462,8 +464,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const totalSize = docs.reduce((s, d) => s + (d.size || 0), 0);
                 storageText.textContent = `${docs.length} document${docs.length !== 1 ? 's' : ''} • ${formatBytes(totalSize)} used`;
 
-                const fv = filterProfileSelect.value;
-                if (fv !== 'All') docs = docs.filter(d => (d.profile || 'Self') === fv);
+                const fProfile = filterProfileSelect.value;
+                if (fProfile !== 'All') docs = docs.filter(d => (d.profile || 'Self') === fProfile);
+                
+                const fCategory = filterCategorySelect.value;
+                if (fCategory !== 'All') docs = docs.filter(d => (d.category || 'Other') === fCategory);
 
                 documentList.innerHTML = ''; docCount.textContent = docs.length;
                 if (!docs.length) { emptyState.style.display = 'block'; return; }
@@ -480,6 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     item.className = 'doc-item';
                     const isImg = doc.type?.startsWith('image/');
                     const tag = doc.profile || 'Self';
+                    const cat = doc.category || 'Other';
                     let preview = `<div class="doc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16h16V8l-6-6z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>`;
                     if (isImg && doc.blob) preview = `<img src="${URL.createObjectURL(doc.blob)}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;min-width:40px;">`;
 
@@ -489,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div class="doc-meta">
                                 <span class="doc-name" title="${esc(doc.name)}">${esc(doc.name)}</span>
                                 <div style="display:flex;gap:6px;align-items:center;">
-                                    <span class="doc-tags">${esc(tag)}</span>
+                                    <span class="doc-tags">${esc(cat)} • ${esc(tag)}</span>
                                     <span class="doc-size">• ${formatBytes(doc.size)}</span>
                                 </div>
                             </div>

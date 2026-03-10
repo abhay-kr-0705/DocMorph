@@ -79,8 +79,13 @@
                 <div class="input-row">
                     <div class="input-group" style="flex:2;"><input type="text" id="docName" placeholder="e.g. Signature, Aadhaar" autocomplete="off" /></div>
                     <div class="input-group" style="flex:1;">
-                        <select id="docProfile" title="Tag">
+                        <select id="docProfile" title="Profile">
                             <option value="Self">Self</option><option value="Father">Father</option><option value="Mother">Mother</option><option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="flex:1;">
+                        <select id="docCategory" title="Category">
+                            <option value="Identity">Identity</option><option value="Education">Education</option><option value="Photo/Sig">Photo/Sig</option><option value="Other">Other</option>
                         </select>
                     </div>
                 </div>
@@ -112,7 +117,10 @@
             <section class="vault-section">
                 <div class="vault-header">
                     <div style="display:flex;align-items:center;gap:8px;"><h2>Documents</h2><span class="badge" id="docCount">0</span></div>
-                    <select id="filterProfile" class="filter-select"><option value="All">All</option><option value="Self">Self</option><option value="Father">Father</option><option value="Mother">Mother</option><option value="Other">Other</option></select>
+                    <div style="display:flex;gap:4px;">
+                        <select id="filterCategory" class="filter-select"><option value="All">All Categories</option><option value="Identity">Identity</option><option value="Education">Education</option><option value="Photo/Sig">Photo/Sig</option><option value="Other">Other</option></select>
+                        <select id="filterProfile" class="filter-select"><option value="All">All Profiles</option><option value="Self">Self</option><option value="Father">Father</option><option value="Mother">Mother</option><option value="Other">Other</option></select>
+                    </div>
                 </div>
                 <div class="document-list" id="documentList"></div>
                 <div class="empty-state" id="emptyState">

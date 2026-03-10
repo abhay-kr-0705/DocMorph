@@ -138,9 +138,11 @@ class DocMorphContent {
                     <div class="docmorph-empty">Loading...</div>
                 </div>
                 <div class="docmorph-footer">
-                    <div class="docmorph-options-title">Auto-Compress (optional)</div>
-                    <div class="docmorph-target-size">
-                        Max Size: <input type="number" id="dmMaxSize" placeholder="e.g. 50" min="1" max="10000" /> KB
+                    <div class="docmorph-options-title">Detected Requirements (editable)</div>
+                    <div class="docmorph-target-size" style="display:flex; gap:10px; justify-content:center; align-items:center; margin-bottom: 8px;">
+                        <label style="font-size:0.75rem;display:flex;align-items:center;gap:4px;">Max KB: <input type="number" id="dmMaxSize" style="width:50px;font-size:0.75rem;padding:2px;"/></label>
+                        <label style="font-size:0.75rem;display:flex;align-items:center;gap:4px;">W: <input type="number" id="dmTargetW" style="width:50px;font-size:0.75rem;padding:2px;"/></label>
+                        <label style="font-size:0.75rem;display:flex;align-items:center;gap:4px;">H: <input type="number" id="dmTargetH" style="width:50px;font-size:0.75rem;padding:2px;"/></label>
                     </div>
                     <button class="docmorph-fill-btn" id="dmFillBtn" disabled>Select a document</button>
                 </div>
@@ -239,16 +241,30 @@ class DocMorphContent {
 
     guessSizeRequirement() {
         const sizeInput = this.overlay.querySelector('#dmMaxSize');
-        sizeInput.value = '';
+        const wInput = this.overlay.querySelector('#dmTargetW');
+        const hInput = this.overlay.querySelector('#dmTargetH');
+        sizeInput.value = ''; wInput.value = ''; hInput.value = '';
         if (!this.activeInput) return;
         
-        // Scan parent and label text for "max 50kb" type hints
-        const parentText = (this.activeInput.closest('div, td, li, section')?.textContent || '').toLowerCase();
-        const match = parentText.match(/(?:max(?:imum)?|under|less than|upto|up to|<)[^0-9]{0,10}([0-9]+)\s*(kb|mb)/i);
-        if (match) {
-            let num = parseInt(match[1]);
-            if (match[2].toLowerCase() === 'mb') num = num * 1024;
+        // Scan parent and label text for requirements
+        const parentText = (this.activeInput.closest('div, td, li, section, form')?.textContent || '').toLowerCase();
+        
+        // 1. Match KB/MB limits
+        const sizeMatch = parentText.match(/(?:max(?:imum)?|under|less than|upto|up to|<)[^0-9]{0,10}([0-9]{2,4})\s*(kb|mb)/i);
+        if (sizeMatch) {
+            let num = parseInt(sizeMatch[1]);
+            if (sizeMatch[2].toLowerCase() === 'mb') num = num * 1024;
             sizeInput.value = num;
+        }
+
+        // 2. Match Dimensions (e.g. 200x230, 200 x 230, 200px * 230px, width 200 height 230)
+        let dimMatch = parentText.match(/(\d{2,4})\s*px\s*[xX*]\s*(\d{2,4})\s*px/);
+        if (!dimMatch) dimMatch = parentText.match(/(\d{2,4})\s*[xX*]\s*(\d{2,4})/);
+        if (!dimMatch) dimMatch = parentText.match(/width\s*(\d{2,4}).*?height\s*(\d{2,4})/);
+        
+        if (dimMatch && parseInt(dimMatch[1]) > 10 && parseInt(dimMatch[2]) > 10) {
+            wInput.value = parseInt(dimMatch[1]);
+            hInput.value = parseInt(dimMatch[2]);
         }
     }
 
@@ -267,12 +283,13 @@ class DocMorphContent {
             }
 
             // Client-side image compression using canvas
-            const sizeInput = this.overlay.querySelector('#dmMaxSize');
-            const targetKB = parseInt(sizeInput.value);
+            const targetKB = parseInt(this.overlay.querySelector('#dmMaxSize').value);
+            const targetW = parseInt(this.overlay.querySelector('#dmTargetW').value);
+            const targetH = parseInt(this.overlay.querySelector('#dmTargetH').value);
 
-            if (this.selectedDoc.type.startsWith('image/') && targetKB && !isNaN(targetKB) && targetKB > 0) {
-                if (finalBlob.size > targetKB * 1024) {
-                    finalBlob = await this.compressImageLocally(finalBlob, targetKB);
+            if (this.selectedDoc.type.startsWith('image/')) {
+                if ((targetKB && targetKB > 0) || (targetW > 0 && targetH > 0)) {
+                    finalBlob = await this.processImageLocally(finalBlob, targetKB, targetW, targetH);
                 }
             }
 
@@ -300,34 +317,59 @@ class DocMorphContent {
         }
     }
 
-    // In-page Canvas-based compression (no dependency on ImageProcessor.js)
-    compressImageLocally(blob, maxSizeKB) {
+    // In-page Canvas-based compression & cropping
+    processImageLocally(blob, maxSizeKB, exactW, exactH) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             const url = URL.createObjectURL(blob);
             img.onload = () => {
                 URL.revokeObjectURL(url);
                 
-                let width = img.width;
-                let height = img.height;
-                
-                // Scale down if very large
-                const MAX_DIM = 1920;
-                if (width > MAX_DIM || height > MAX_DIM) {
-                    const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
-                    width = Math.round(width * ratio);
-                    height = Math.round(height * ratio);
+                let sWidth = img.width;
+                let sHeight = img.height;
+                let sX = 0, sY = 0;
+                let dWidth = sWidth, dHeight = sHeight;
+
+                // 1. Handle exact dimension requests with center-cropping
+                if (exactW && exactH) {
+                    dWidth = exactW;
+                    dHeight = exactH;
+                    const srcRatio = sWidth / sHeight;
+                    const dstRatio = dWidth / dHeight;
+
+                    if (srcRatio > dstRatio) {
+                        const newWidth = sHeight * dstRatio;
+                        sX = (sWidth - newWidth) / 2;
+                        sWidth = newWidth;
+                    } else {
+                        const newHeight = sWidth / dstRatio;
+                        sY = (sHeight - newHeight) / 2;
+                        sHeight = newHeight;
+                    }
+                } else {
+                    // Safe scale-down if no exact dimensions given
+                    const MAX_DIM = 1920;
+                    if (sWidth > MAX_DIM || sHeight > MAX_DIM) {
+                        const ratio = Math.min(MAX_DIM / sWidth, MAX_DIM / sHeight);
+                        dWidth = Math.round(sWidth * ratio);
+                        dHeight = Math.round(sHeight * ratio);
+                    }
                 }
 
                 const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
+                canvas.width = dWidth;
+                canvas.height = dHeight;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, width, height);
-                ctx.drawImage(img, 0, 0, width, height);
+                ctx.fillRect(0, 0, dWidth, dHeight);
+                ctx.drawImage(img, sX, sY, sWidth, sHeight, 0, 0, dWidth, dHeight);
 
-                const targetBytes = maxSizeKB * 1024;
+                if (!maxSizeKB && !exactW) {
+                    resolve(blob);
+                    return;
+                }
+
+                const targetBytes = maxSizeKB ? maxSizeKB * 1024 : 500 * 1024;
                 let minQ = 0.05, maxQ = 1.0;
                 let bestBlob = null;
                 let iter = 0;
@@ -335,12 +377,17 @@ class DocMorphContent {
                 const attempt = (quality) => {
                     canvas.toBlob((result) => {
                         iter++;
-                        if (result.size <= targetBytes) {
-                            bestBlob = result; // fits in the limit
+                        if (result.size <= targetBytes || !maxSizeKB) {
+                            bestBlob = result;
+                        }
+                        
+                        // If no KB constraint but we needed dimension resize, just return high quality once resolved
+                        if (!maxSizeKB && bestBlob) {
+                            resolve(bestBlob);
+                            return;
                         }
                         
                         if (iter >= 12 || (result.size <= targetBytes && result.size > targetBytes * 0.7)) {
-                            // Good enough or max iterations
                             resolve(bestBlob || result);
                             return;
                         }
@@ -355,12 +402,11 @@ class DocMorphContent {
                     }, 'image/jpeg', quality);
                 };
 
-                // If already under-dimension, try just lowering quality first
-                attempt(0.85);
+                attempt(maxSizeKB ? 0.85 : 0.95);
             };
             img.onerror = () => {
                 URL.revokeObjectURL(url);
-                reject(new Error("Failed to load image for compression."));
+                reject(new Error("Failed to load image for processing."));
             };
             img.src = url;
         });
