@@ -82,4 +82,4 @@ FormFillingExtension/
 
 ## License
 
-MIT — Free to use and modify.
+MIT — Free to use and modify. 
