@@ -136,3 +136,4 @@ class ZipBuilder {
 }
 
 if (typeof window !== 'undefined') window.ZipBuilder = ZipBuilder;
+
