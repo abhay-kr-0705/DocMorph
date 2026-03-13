@@ -162,3 +162,4 @@ if (typeof self !== 'undefined' && typeof window === 'undefined') {
 } else if (typeof window !== 'undefined') {
     window.DocMorphDB = new DocMorphDB();
 }
+
