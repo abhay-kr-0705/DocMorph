@@ -54,3 +54,4 @@ const EXAM_PRESETS = {
 // Expose globally
 if (typeof window !== 'undefined') window.EXAM_PRESETS = EXAM_PRESETS;
 if (typeof self !== 'undefined' && typeof window === 'undefined') self.EXAM_PRESETS = EXAM_PRESETS;
+
