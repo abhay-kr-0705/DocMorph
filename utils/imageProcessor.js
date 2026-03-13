@@ -270,3 +270,4 @@ class ImageProcessor {
 
 // Expose globally
 if (typeof window !== 'undefined') window.ImageProcessor = ImageProcessor;
+
